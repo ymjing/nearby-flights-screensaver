@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "id": "nearby-flights",
   "name": "Nearby Flights",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "apiVersion": 1,
   "minAndroidSdk": 24,
   "minAppVersion": "2026.10.23",
   "entryClass": "me.jxl.kiosk.plugins.flights.FlightsPlugin",
-  "description": "Nearby Flights screensaver: a list and a scope of the aircraft overhead, from your own receiver or adsb.lol.",
+  "description": "Nearby Flights screensaver: a list and a scope of the aircraft overhead, from your own receiver or adsb.fi.",
   "author": "Mike Janofsky",
   "license": "Apache-2.0",
   "icon": "icon.png",
@@ -167,11 +167,11 @@
       "type": "select",
       "options": [
         "Local feed",
-        "adsb.lol",
-        "Local + adsb.lol"
+        "adsb.fi",
+        "Local + adsb.fi"
       ],
-      "default": "Local feed",
-      "description": "Local + adsb.lol asks both every refresh and merges them: a home antenna hears only part of the traffic.",
+      "default": "adsb.fi",
+      "description": "Local + adsb.fi asks both every refresh and merges the results.",
       "group": "Sources"
     },
     {
@@ -187,24 +187,24 @@
       "title": "Fallback source",
       "type": "select",
       "options": [
-        "adsb.lol",
+        "adsb.fi",
         "Local feed",
         "None"
       ],
-      "default": "adsb.lol",
+      "default": "None",
       "group": "Sources",
-      "description": "Used when the primary source is unavailable. adsb.lol data is ODbL; see the README."
+      "description": "Used when the primary source is unavailable. adsb.fi is for personal, non-commercial use; see the README."
     },
     {
       "key": "refreshSec",
       "title": "Refresh (s)",
       "type": "number",
-      "min": 65,
-      "max": 3600,
+      "min": 10,
+      "max": 120,
       "step": 5,
-      "default": 65,
+      "default": 20,
       "group": "Sources",
-      "description": "Seconds between position updates; minimum 65 for anonymous access. Daily budget: 480 requests, reset at midnight UTC."
+      "description": "Seconds between position updates (10–120). adsb.fi needs no API key."
     },
     {
       "key": "showWeather",
@@ -272,22 +272,6 @@
         "equals": true
       },
       "description": "Add the wind to the weather line, in the unit of the weather entity. It is the first thing dropped when the line is too long."
-    },
-    {
-      "key": "adsbApiKey",
-      "title": "adsb.lol API key",
-      "type": "string",
-      "default": "",
-      "group": "Sources",
-      "description": "Anonymous API key. Sent only to adsb.lol; leave empty for unkeyed access."
-    },
-    {
-      "key": "adsbQuotaState",
-      "title": "API request accounting (automatic)",
-      "type": "string",
-      "default": "",
-      "group": "Sources",
-      "description": "Maintained automatically. Do not edit: preserves the daily budget and cooldown across restarts."
     },
     {
       "key": "scheduleEnabled",

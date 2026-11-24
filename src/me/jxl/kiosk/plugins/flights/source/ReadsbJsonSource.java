@@ -17,16 +17,18 @@ import org.json.JSONObject;
 
 /**
  * Reads the readsb aircraft structure from either a local tar1090/readsb feed
- * (`/data/aircraft.json`, array `aircraft`) or adsb.lol's `/v2/point` (array `ac`). The two differ
- * in envelope key and in `now` units (seconds vs ms), so `now` is never compared with the device
- * clock: ages are measured from the device clock at arrival, plus the per-aircraft `seen_pos`. A
- * LAN feed's `now` and `messages` are only watched for progress (see {@link FeedWatch}).
+ * (`/data/aircraft.json`, array `aircraft`) or adsb.fi v3 / adsb.lol v2 (array `ac`). The two
+ * differ in envelope key and in `now` units (seconds vs ms), so `now` is never compared with the
+ * device clock: ages are measured from the device clock at arrival, plus the per-aircraft
+ * `seen_pos`. A LAN feed's `now` and `messages` are only watched for progress (see {@link
+ * FeedWatch}).
  */
 public final class ReadsbJsonSource implements SourceAdapter {
   private static final double FT_M = 0.3048, KT_MS = 1852.0 / 3600.0, FPM_MS = FT_M / 60.0;
   private static final int MAX_BODY_BYTES = 4 * 1024 * 1024;
   private static final int TIMEOUT_MS = 8000;
 
+  private boolean fi;
   private String apiKey = "";
 
   public ReadsbJsonSource withApiKey(String key) {
@@ -35,7 +37,7 @@ public final class ReadsbJsonSource implements SourceAdapter {
   }
 
   private final String id;
-  private final String localUrl; // null for adsb.lol
+  private final String localUrl; // null for an internet feed
   private final String userAgent;
   private final NetCooldown cooldown; // null for a LAN feed
   // Only a LAN feed is watched: the server answering says nothing about the receiver behind it.
@@ -58,6 +60,19 @@ public final class ReadsbJsonSource implements SourceAdapter {
     return new ReadsbJsonSource("net", null, userAgent, cooldown);
   }
 
+  /** Public adsb.fi v3 radius endpoint; no API key. */
+  public static ReadsbJsonSource adsbFi(String userAgent, NetCooldown cooldown) {
+    ReadsbJsonSource source = new ReadsbJsonSource("net", null, userAgent, cooldown);
+    source.fi = true;
+    return source;
+  }
+
+  static String adsbFiUrl(double lat, double lon, double radiusM) {
+    long nm = Math.min(250, (long) Math.ceil(radiusM / 1852.0) + 1);
+    return String.format(
+        Locale.US, "https://opendata.adsb.fi/api/v3/lat/%.2f/lon/%.2f/dist/%d", lat, lon, nm);
+  }
+
   @Override
   public String id() {
     return id;
@@ -74,7 +89,10 @@ public final class ReadsbJsonSource implements SourceAdapter {
 
   @Override
   public FetchResult fetch(double homeLat, double homeLon, double radiusM) throws SourceException {
-    String url = localUrl != null ? localUrl : adsbLolUrl(homeLat, homeLon, radiusM);
+    String url =
+        localUrl != null
+            ? localUrl
+            : fi ? adsbFiUrl(homeLat, homeLon, radiusM) : adsbLolUrl(homeLat, homeLon, radiusM);
     String body = get(url);
     long nowMs = System.currentTimeMillis();
     FetchResult r = parse(body, nowMs, homeLat, homeLon, radiusM);
@@ -161,7 +179,7 @@ public final class ReadsbJsonSource implements SourceAdapter {
   private String get(String url) throws SourceException {
     if (cooldown != null) {
       int left = cooldown.remainingS();
-      // No request at all while adsb.lol asked us to back off, whichever of our calls tripped it.
+      // No request while the provider asks us to back off.
       if (left > 0) throw new SourceException(id + " source paused (rate limited)", null, left);
     }
     if (cooldown != null) cooldown.acquire();
@@ -173,7 +191,7 @@ public final class ReadsbJsonSource implements SourceAdapter {
       c.setReadTimeout(TIMEOUT_MS);
       c.setRequestProperty("User-Agent", userAgent);
       c.setRequestProperty("Accept", "application/json");
-      if (localUrl == null && !apiKey.isEmpty()) c.setRequestProperty("x-api-key", apiKey);
+      if (!fi && localUrl == null && !apiKey.isEmpty()) c.setRequestProperty("x-api-key", apiKey);
       int code = c.getResponseCode();
       if (code != 200) {
         int retry = parseRetryAfter(c.getHeaderField("Retry-After"));

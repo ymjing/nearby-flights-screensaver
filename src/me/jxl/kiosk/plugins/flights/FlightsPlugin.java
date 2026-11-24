@@ -29,7 +29,7 @@ import me.jxl.kiosk.plugins.flights.weather.WeatherSource;
  */
 public final class FlightsPlugin implements KioskPlugin {
   static final String USER_AGENT =
-      "nearby-flights-screensaver (+https://github.com/mpjanofsky/nearby-flights-screensaver)";
+      "nearby-flights-screensaver (+https://github.com/ymjing/nearby-flights-screensaver)";
   private static final String KEY = "flights", TITLE = "Nearby Flights";
 
   /** KS names a plugin screensaver `plugin:PLUGIN_ID:KEY` (the id is the manifest's). */
@@ -40,7 +40,6 @@ public final class FlightsPlugin implements KioskPlugin {
   private PluginHost host;
   private final NetCooldown net = new NetCooldown();
   private volatile OperatingSchedule operatingSchedule;
-  private String apiKey = "";
   private long fetchDueMs;
   private boolean outsideHours;
   private ScheduledExecutorService worker;
@@ -220,6 +219,20 @@ public final class FlightsPlugin implements KioskPlugin {
 
   @Override
   public synchronized void configure(Map<String, Object> settings) {
+    Map<String, Object> migrated = PluginSettings.migrate(settings);
+    if (!migrated.equals(settings)) {
+      Map<String, Object> updates = new HashMap<>();
+      for (String k : migrated.keySet()) {
+        if (!java.util.Objects.equals(migrated.get(k), settings.get(k)))
+          updates.put(k, migrated.get(k));
+      }
+      try {
+        host.updateSettings(updates);
+      } catch (RuntimeException ex) {
+        host.log("Could not save source migration; using adsb.fi for this session");
+      }
+      settings = migrated;
+    }
     if (settings.equals(applied)) return; // each edit re-sends everything; skip no-ops
     applied = new HashMap<>(settings);
     PluginSettings s = PluginSettings.parse(settings);
@@ -240,17 +253,11 @@ public final class FlightsPlugin implements KioskPlugin {
       publish(PayloadEncoder.message(s.error, System.currentTimeMillis()), 0);
       return;
     }
-    // One adsb.lol cooldown for positions, wider probes and hex lookups: a 429 pauses all three.
+    // adsb.fi has its own pacing and cooldown, independent of legacy adsb.lol accounting.
     operatingSchedule = s.schedule;
-    apiKey = s.apiKey;
     fetchDueMs = 0;
     outsideHours = false;
-    net.configure(
-        (String) settings.get("adsbQuotaState"),
-        state -> {
-          host.updateSettings(Collections.<String, Object>singletonMap("adsbQuotaState", state));
-        },
-        now -> !paused && operatingSchedule.allows(now));
+    net.configureUnmetered(now -> !paused && operatingSchedule.allows(now));
     // adsbdb for hex -> registration/type; adsb.im for callsign routes.
     enricher =
         new Enricher(
@@ -322,12 +329,11 @@ public final class FlightsPlugin implements KioskPlugin {
   private SourceAdapter source(String name, String localUrl, NetCooldown net) {
     if (PluginSettings.BOTH.equals(name)) {
       return new MergedSource(
-          ReadsbJsonSource.local(localUrl, USER_AGENT),
-          ReadsbJsonSource.adsbLol(USER_AGENT, net).withApiKey(apiKey));
+          ReadsbJsonSource.local(localUrl, USER_AGENT), ReadsbJsonSource.adsbFi(USER_AGENT, net));
     }
     return PluginSettings.LOCAL.equals(name)
         ? ReadsbJsonSource.local(localUrl, USER_AGENT)
-        : ReadsbJsonSource.adsbLol(USER_AGENT, net).withApiKey(apiKey);
+        : ReadsbJsonSource.adsbFi(USER_AGENT, net);
   }
 
   private synchronized void schedule(int gen, long delayMs) {

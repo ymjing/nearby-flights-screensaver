@@ -18,6 +18,12 @@ class FlightsPluginTest {
     final List<String> published = new CopyOnWriteArrayList<>();
     final List<String> statuses = new CopyOnWriteArrayList<>();
     final List<String> logs = new CopyOnWriteArrayList<>();
+    final Map<String, Object> saved = new HashMap<>();
+
+    public void updateSettings(Map<String, Object> values) {
+      saved.putAll(values);
+    }
+
     Boolean initiallyActive = true; // null: the read fails
     boolean refuse; // subscribe throws, as without the host.read capability
     String mode = FlightsPlugin.MODE_ID; // what getScreensaverMode reports; null: the read fails
@@ -231,6 +237,33 @@ class FlightsPluginTest {
       m.put("scheduleEnabled", false);
       p.configure(m);
       assertTrue(waitFor(() -> !isIdle(h.published.get(h.published.size() - 1))));
+    } finally {
+      p.stop();
+    }
+  }
+
+  @Test
+  void upgradingSavesFiAndTwentySecondsWithoutChangingScheduleOrCopyingKey() throws Exception {
+    FakeHost h = new FakeHost();
+    h.initiallyActive = false;
+    FlightsPlugin p = new FlightsPlugin();
+    Map<String, Object> m = settings();
+    m.put("primarySource", "adsb.lol");
+    m.put("refreshSec", 65);
+    m.put("adsbApiKey", "old-secret");
+    m.put("adsbQuotaState", "old-accounting");
+    m.put("scheduleEnabled", true);
+    m.put("runMonday", false);
+    m.put("runTuesday", false);
+    m.put("runWednesday", false);
+    m.put("runThursday", false);
+    m.put("runFriday", false);
+    try {
+      p.start(h, m);
+      assertEquals("adsb.fi", h.saved.get("primarySource"));
+      assertEquals(20, h.saved.get("refreshSec"));
+      assertEquals(2, h.saved.size());
+      assertFalse(h.logs.toString().contains("old-secret"));
     } finally {
       p.stop();
     }

@@ -669,7 +669,7 @@ final class ScopeView extends View {
   private static String srcText(Model m) {
     return "local".equals(m.src)
         ? "● Local feed"
-        : "mix".equals(m.src) ? "● Local + internet" : "● Internet feed";
+        : "mix".equals(m.src) ? "● Local + adsb.fi" : "● adsb.fi";
   }
 
   // ---- scope

@@ -10,8 +10,8 @@ import me.jxl.kiosk.plugins.flights.weather.HaWeatherSource;
  */
 public final class PluginSettings {
   public static final String LOCAL = "Local feed",
-      NET = "adsb.lol",
-      BOTH = "Local + adsb.lol",
+      NET = "adsb.fi",
+      BOTH = "Local + adsb.fi",
       NONE = "None";
 
   /** Settings that only the weather line reads; changing them never needs a new engine. */
@@ -29,6 +29,7 @@ public final class PluginSettings {
     Map<String, Object> k = new java.util.HashMap<>(settings);
     k.keySet().removeAll(WEATHER_KEYS);
     k.remove("adsbQuotaState");
+    k.remove("adsbApiKey");
     return k;
   }
 
@@ -36,7 +37,6 @@ public final class PluginSettings {
   public final String primary, fallback, localUrl;
   public final long refreshMs;
   public OperatingSchedule schedule;
-  public String apiKey;
 
   /** The `weather.*` entity to show, or empty when "Show weather" is off or no entity is chosen. */
   public final String weatherEntity;
@@ -71,15 +71,36 @@ public final class PluginSettings {
     this.error = error;
   }
 
+  /** Upgrade source labels and the previous default once, preserving custom schedules. */
+  public static Map<String, Object> migrate(Map<String, Object> original) {
+    Map<String, Object> m = new java.util.HashMap<>(original);
+    boolean legacy = false;
+    for (String key : new String[] {"primarySource", "fallbackSource"}) {
+      Object value = m.get(key);
+      if ("adsb.lol".equals(value)) {
+        m.put(key, NET);
+        legacy = true;
+      } else if ("Local + adsb.lol".equals(value)) {
+        m.put(key, BOTH);
+        legacy = true;
+      }
+    }
+    Object refresh = m.get("refreshSec");
+    if (legacy && refresh instanceof Number && ((Number) refresh).doubleValue() == 65)
+      m.put("refreshSec", 20);
+    return m;
+  }
+
   public static PluginSettings parse(Map<String, Object> m) {
+    m = migrate(m);
     Double lat = coord(m.get("homeLat"), 90), lon = coord(m.get("homeLon"), 180);
-    String primary = str(m.get("primarySource"), LOCAL),
-        fallback = str(m.get("fallbackSource"), NET);
+    String primary = str(m.get("primarySource"), NET),
+        fallback = str(m.get("fallbackSource"), NONE);
     String url = str(m.get("localUrl"), "").trim();
     String err = null;
     if (BOTH.equals(primary)) {
       // Both feeds are asked every cycle, so there is nothing left to fall back to. Without a
-      // local URL it is simply adsb.lol.
+      // local URL it is simply adsb.fi.
       fallback = NONE;
       if (!url.startsWith("http")) primary = NET;
     }
@@ -89,7 +110,7 @@ public final class PluginSettings {
       // A missing local URL is only fatal when nothing else can supply data.
       if (LOCAL.equals(primary) && (NONE.equals(fallback) || LOCAL.equals(fallback)))
         err = "Set the local feed URL (http://...)";
-      if (LOCAL.equals(primary) && NET.equals(fallback)) primary = NET; // run on adsb.lol alone
+      if (LOCAL.equals(primary) && NET.equals(fallback)) primary = NET; // run on adsb.fi alone
       if (LOCAL.equals(fallback)) fallback = NONE;
     }
     if (primary.equals(fallback)) fallback = NONE;
@@ -135,7 +156,7 @@ public final class PluginSettings {
             primary,
             fallback,
             url,
-            (long) num(m.get("refreshSec"), 65, 65, 3600) * 1000L,
+            (long) num(m.get("refreshSec"), 20, 10, 120) * 1000L,
             entity,
             wxProblem,
             wxShow,
@@ -146,7 +167,6 @@ public final class PluginSettings {
       return new PluginSettings(
           c, primary, fallback, url, result.refreshMs, entity, wxProblem, wxShow, e.getMessage());
     }
-    result.apiKey = str(m.get("adsbApiKey"), "").trim();
     return result;
   }
 

@@ -62,4 +62,25 @@ class NetCooldownTest {
     assertTrue(e.retryAfterS > 0);
     assertThrows(IOException.class, () -> new AdsbLolHex("test", c).aircraft("abc123"));
   }
+
+  @Test
+  void fiHasNoDailyBudgetAndHonorsSpacingScheduleAndCooldown() throws Exception {
+    c.configureUnmetered(t -> true);
+    c.acquire();
+    assertThrows(SourceException.class, c::acquire);
+    for (int i = 0; i < 5000; i++) {
+      now.addAndGet(10000);
+      c.acquire();
+    }
+    c.configureUnmetered(t -> false);
+    now.addAndGet(20000);
+    assertThrows(SourceException.class, c::acquire);
+    c.configureUnmetered(t -> true);
+    c.trip(7200);
+    SourceException e = assertThrows(SourceException.class, c::acquire);
+    assertTrue(e.getMessage().contains("adsb.fi"));
+    assertEquals(7200, e.retryAfterS);
+    now.addAndGet(7200000);
+    c.acquire();
+  }
 }

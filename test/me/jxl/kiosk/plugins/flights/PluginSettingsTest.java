@@ -15,7 +15,7 @@ class PluginSettingsTest {
     Map<String, Object> m = new HashMap<>();
     m.put("homeLat", "27.5");
     m.put("homeLon", "-82.5");
-    m.put("primarySource", "adsb.lol");
+    m.put("primarySource", "adsb.fi");
     m.put("fallbackSource", "None");
     return m;
   }
@@ -27,7 +27,7 @@ class PluginSettingsTest {
     assertEquals(15 * 1852.0, s.config.radiusM, 1e-6);
     assertEquals("av", s.config.units);
     assertEquals(4, s.config.maxRows);
-    assertEquals(65_000, s.refreshMs);
+    assertEquals(20_000, s.refreshMs);
     Map<String, Object> m = ok();
     m.put("units", "Metric");
     m.put("radiusNm", 99.0);
@@ -35,7 +35,7 @@ class PluginSettingsTest {
     s = PluginSettings.parse(m);
     assertEquals("met", s.config.units);
     assertEquals(50 * 1852.0, s.config.radiusM, 1e-6); // clamped
-    assertEquals(65_000, s.refreshMs);
+    assertEquals(10_000, s.refreshMs);
   }
 
   @Test
@@ -56,41 +56,41 @@ class PluginSettingsTest {
   void localWithoutAUrlFallsBackToAdsbLolAloneOrErrors() {
     Map<String, Object> m = ok();
     m.put("primarySource", "Local feed");
-    m.put("fallbackSource", "adsb.lol");
+    m.put("fallbackSource", "adsb.fi");
     PluginSettings s = PluginSettings.parse(m);
     assertNull(s.error);
-    assertEquals("adsb.lol", s.primary);
+    assertEquals("adsb.fi", s.primary);
     assertEquals("None", s.fallback);
     m.put("fallbackSource", "None");
     assertTrue(PluginSettings.parse(m).error.contains("local feed URL"));
     m.put("localUrl", "http://host:8080/data/aircraft.json");
-    m.put("fallbackSource", "adsb.lol");
+    m.put("fallbackSource", "adsb.fi");
     s = PluginSettings.parse(m);
     assertEquals("Local feed", s.primary);
-    assertEquals("adsb.lol", s.fallback);
+    assertEquals("adsb.fi", s.fallback);
   }
 
   @Test
   void mergedPrimaryHasNoFallbackAndNeedsALocalUrlElseRunsOnAdsbLol() {
     Map<String, Object> m = ok();
-    m.put("primarySource", "Local + adsb.lol");
-    m.put("fallbackSource", "adsb.lol");
+    m.put("primarySource", "Local + adsb.fi");
+    m.put("fallbackSource", "adsb.fi");
     m.put("localUrl", "http://host:8080/data/aircraft.json");
     PluginSettings s = PluginSettings.parse(m);
     assertNull(s.error);
-    assertEquals("Local + adsb.lol", s.primary);
+    assertEquals("Local + adsb.fi", s.primary);
     assertEquals("None", s.fallback);
     m.put("localUrl", "");
     s = PluginSettings.parse(m);
     assertNull(s.error);
-    assertEquals("adsb.lol", s.primary);
+    assertEquals("adsb.fi", s.primary);
     assertEquals("None", s.fallback);
   }
 
   @Test
   void identicalPrimaryAndFallbackCollapse() {
     Map<String, Object> m = ok();
-    m.put("fallbackSource", "adsb.lol");
+    m.put("fallbackSource", "adsb.fi");
     assertEquals("None", PluginSettings.parse(m).fallback);
   }
 
@@ -331,5 +331,49 @@ class PluginSettingsTest {
     assertEquals(PluginSettings.engineKey(a), PluginSettings.engineKey(b));
     b.put("radiusNm", 20);
     assertFalse(PluginSettings.engineKey(a).equals(PluginSettings.engineKey(b)));
+  }
+
+  @Test
+  void fiDefaultsAndRefreshBounds() {
+    Map<String, Object> m = new HashMap<>();
+    m.put("homeLat", "37.62");
+    m.put("homeLon", "-122.38");
+    PluginSettings s = PluginSettings.parse(m);
+    assertEquals("adsb.fi", s.primary);
+    assertEquals("None", s.fallback);
+    assertEquals(20000, s.refreshMs);
+    m.put("refreshSec", 5);
+    assertEquals(10000, PluginSettings.parse(m).refreshMs);
+    m.put("refreshSec", 121);
+    assertEquals(120000, PluginSettings.parse(m).refreshMs);
+    m.put("refreshSec", 65);
+    assertEquals(65000, PluginSettings.parse(m).refreshMs);
+  }
+
+  @Test
+  void migrationPreservesScheduleAndDoesNotRepeat() {
+    Map<String, Object> old = ok();
+    old.put("primarySource", "adsb.lol");
+    old.put("refreshSec", 65);
+    old.put("scheduleStart", "10:30");
+    old.put("scheduleEnd", "15:45");
+    old.put("runFriday", false);
+    old.put("adsbApiKey", "unused-old-key");
+    old.put("adsbQuotaState", "0:480:9999999999999:9999999999999");
+    Map<String, Object> updated = PluginSettings.migrate(old);
+    assertEquals("adsb.fi", updated.get("primarySource"));
+    assertEquals(20, updated.get("refreshSec"));
+    assertEquals("10:30", updated.get("scheduleStart"));
+    assertEquals("15:45", updated.get("scheduleEnd"));
+    assertEquals(false, updated.get("runFriday"));
+    assertEquals(20000, PluginSettings.parse(old).refreshMs);
+    assertEquals("adsb.lol", old.get("primarySource"));
+    updated.put("refreshSec", 65);
+    assertEquals(updated, PluginSettings.migrate(updated));
+    old.put("refreshSec", 90);
+    assertEquals(90000, PluginSettings.parse(old).refreshMs);
+    old.put("primarySource", "Local + adsb.lol");
+    old.put("localUrl", "http://receiver/data/aircraft.json");
+    assertEquals("Local + adsb.fi", PluginSettings.parse(old).primary);
   }
 }

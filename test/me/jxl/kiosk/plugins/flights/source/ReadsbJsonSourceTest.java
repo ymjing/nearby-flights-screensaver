@@ -165,4 +165,39 @@ class ReadsbJsonSourceTest {
     assertEquals(0.0, a.verticalRateMs, 1e-9);
     assertFalse(a.onGround);
   }
+
+  @Test
+  void fiQueryIsRoundedPaddedAndCapped() {
+    assertEquals(
+        "https://opendata.adsb.fi/api/v3/lat/37.62/lon/-122.38/dist/51",
+        ReadsbJsonSource.adsbFiUrl(37.6199, -122.3799, 50 * 1852));
+    assertTrue(ReadsbJsonSource.adsbFiUrl(0, 0, 400 * 1852).endsWith("/250"));
+  }
+
+  @Test
+  void fiHonorsCooldownBeforeNetwork() {
+    NetCooldown cooldown = new NetCooldown();
+    cooldown.trip(7200);
+    SourceException e =
+        assertThrows(
+            SourceException.class,
+            () -> ReadsbJsonSource.adsbFi("test", cooldown).fetch(37.62, -122.38, 50 * 1852));
+    assertTrue(e.retryAfterS >= 7199);
+  }
+
+  @Test
+  void fiV3SnapshotUsesExistingAircraftParser() throws Exception {
+    String body =
+        new String(
+            java.nio.file.Files.readAllBytes(
+                java.nio.file.Paths.get("fixtures/feed/adsbfi-point.json")),
+            java.nio.charset.StandardCharsets.UTF_8);
+    FetchResult result = ReadsbJsonSource.parse(body, 1000, 37.62, -122.38, 50 * 1852);
+    assertFalse(result.aircraft.isEmpty());
+    Aircraft a = result.aircraft.get(0);
+    assertTrue(a.positionAgeS >= 0);
+    assertFalse(Double.isNaN(a.altitudeM));
+    assertFalse(Double.isNaN(a.groundSpeedMs));
+    assertEquals(1000, result.observedAtMs);
+  }
 }

@@ -48,7 +48,7 @@ not a map.*
 - 🌙 **A quiet-sky screen** for when nothing is around, and a clock in the corner.
 - 🔒 **Private by default:** your exact location stays on your device. See Privacy below.
 
-Aircraft positions come from your own ADS-B receiver, the free [adsb.lol](https://adsb.lol) service,
+Aircraft positions come from your own ADS-B receiver, the free [adsb.fi](https://adsb.fi) service,
 or both. No account or key needed.
 
 ## 📱 Supported devices
@@ -134,7 +134,7 @@ of scheduled flights. It's a good guess, not a promise, so the screen shows how 
 | Screen | Details |
 |---|---|
 | ![Quiet sky](docs/images/screen-empty.png) | Nothing is inside your radius. With Soft radius on, it first looks farther out. |
-| ![Data stale](docs/images/screen-stale.png) | The plugin can't reach its data source, so what's on screen is getting old ("No new data · 3 min" in yellow). That means the receiver or adsb.lol is down or the network dropped. It keeps retrying and recovers by itself. |
+| ![Data stale](docs/images/screen-stale.png) | The plugin can't reach its data source, so what's on screen is getting old ("No new data · 3 min" in yellow). That means the receiver or adsb.fi is down or the network dropped. It keeps retrying and recovers by itself. |
 
 ## 🔧 Settings
 
@@ -180,12 +180,10 @@ in this order: wind direction, wind, the condition word. The temperature stays.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Primary source | Local feed | **Local feed**, **adsb.lol**, or **Local + adsb.lol** (uses both and merges them, so you see farther than your antenna reaches). |
+| Primary source | adsb.fi | **Local feed**, **adsb.fi**, or **Local + adsb.fi** (uses both and merges them, so you see farther than your antenna reaches). |
 | Local feed URL | empty | Your receiver's `aircraft.json`, like `http://receiver.local:8080/data/aircraft.json`. |
-| Fallback source | adsb.lol | What to use when the primary source is unavailable. Choose None to turn it off. |
-| Refresh (s) | 65 | How often to fetch positions, 65 to 3,600 seconds. Previously saved shorter intervals are raised to 65 seconds. |
-| adsb.lol API key | empty | Your anonymous key; sent in the `x-api-key` header only to adsb.lol. |
-| API request accounting (automatic) | empty | Saved request count, next poll and cooldown. Leave this field unchanged. |
+| Fallback source | None | What to use when the primary source is unavailable. Choose None to turn it off. |
+| Refresh (s) | 20 | How often to fetch positions, 10 to 120 seconds. |
 
 **Operating schedule**
 
@@ -199,20 +197,21 @@ pause. Outside the schedule the screen shows the idle sky and new flight-data re
 an already-running request may finish. Schedule changes apply when saved. Automatic transitions
 are checked at most 30 seconds apart while the screensaver is active.
 
-This fork targets anonymous access: one position query every 65 seconds is about 444 requests
-in eight hours. Soft radius fetches its maximum area once and selects the displayed radius
-locally. Optional adsb.lol callsign lookups are disabled; callsigns from the position feed still
-work. A persistent **480-request cap per UTC day** reserves headroom below the anonymous
-500-request allowance. Failed attempts count too. Longer schedules stop fetching when the cap
-is reached. Other devices/apps sharing your IP or key can still consume the provider's allowance.
-The plugin honors both numeric and HTTP-date `Retry-After` values without shortening long waits.
-Accounting is saved through Kiosk Satellite's settings API before requests; if saving fails,
-internet fetching pauses rather than spending untracked requests. This requires a host supporting
-`updateSettings`. The key itself is never included in the screensaver payload or logs.
+This fork uses [adsb.fi](https://adsb.fi) for live positions, with **20-second polling** by default
+(configurable from **10 to 120 seconds**). No API key or daily client request budget is required.
+The public API documents a limit of one request per second; the plugin honors `Retry-After`
+and backs off after throttling. Soft radius fetches its maximum area once and selects the displayed
+radius locally. Callsigns come from the position feed; no separate live hex lookups are made.
+
+Upgrading from 0.10.3 automatically changes saved adsb.lol source choices to adsb.fi and changes
+the previous 65-second default to 20 seconds. Other saved intervals are retained within the new
+10–120-second range. Home location, hours and weekdays are preserved. The old API key and request
+accounting are no longer used or sent. adsb.fi data is for personal, non-commercial use; see its
+[API terms](https://github.com/adsbfi/opendata).
 
 ### No receiver?
 
-Leave the local feed URL empty and the plugin uses adsb.lol on its own.
+Select **adsb.fi** as the primary source (the default). No receiver or API key is needed.
 
 ### Have a receiver?
 
@@ -230,7 +229,7 @@ those in from lookups a few seconds later. A new row can change as details arriv
 
 ## 🎯 How accurate is it?
 
-- **Positions and altitude** come straight from ADS-B: the latest fix your receiver or adsb.lol
+- **Positions and altitude** come straight from ADS-B: the latest fix your receiver or adsb.fi
   has for each aircraft, usually a few seconds old. Anything older than a minute is dropped.
   Between updates the scope slides each aircraft along its last known track.
 - **Airline and type** come from the callsign prefix (a table built into the plugin) and lookups by
@@ -248,7 +247,7 @@ those in from lookups a few seconds later. A new row can change as details arriv
   and disappear on restart.
 - **Receiver only?** If you use your own receiver and set Fallback to None, your location never
   leaves your network.
-- **adsb.lol** gets your location rounded to two decimals (about 1 km), with the radius plus
+- **adsb.fi** gets your location rounded to two decimals (about 1 km), with the radius plus
   1 nm, and sees your IP address. That applies whenever it's used: as primary, as the default
   fallback, or for the farther steps of Soft radius.
 - **Weather** comes from your own Home Assistant through Kiosk Satellite. The plugin makes no network
@@ -268,7 +267,7 @@ those in from lookups a few seconds later. A new row can change as details arriv
 | A message about settings | Latitude and longitude must be decimal numbers. The status line says what's wrong. |
 | "Quiet sky" all the time | Radius too small, or Hide general aviation is on. Try a bigger radius or Soft. Check Demo: quiet sky is off. |
 | "No new data" | The source isn't answering. Check the local feed URL in a browser. With the fallback on, it recovers by itself. |
-| Fewer aircraft than a tracking website | A home antenna hears only part of the sky. Try Local + adsb.lol. |
+| Fewer aircraft than a tracking website | A home antenna hears only part of the sky. Try Local + adsb.fi. |
 | Airline or type is blank at first | They fill in a few seconds after an aircraft appears. |
 | A route looks wrong | Routes are a best guess. See About the routes above. |
 | Kiosk Satellite's clock covers the corner | Switch off its clock and weather widgets for the screensaver. |
@@ -287,9 +286,8 @@ failed fetches it reads `Stale:` and the reason.
 What each service gives us, its terms and exactly what we send it are in
 [docs/DATA-SOURCES.md](docs/DATA-SOURCES.md).
 
-- Positions: your own receiver and/or [adsb.lol](https://adsb.lol). Contains information from
-  adsb.lol, made available under the
-  [Open Database License (ODbL)](https://opendatacommons.org/licenses/odbl/1-0/).
+- Positions: your own receiver and/or [adsb.fi](https://adsb.fi). Data provided by adsb.fi
+  for personal, non-commercial use under its [API terms](https://github.com/adsbfi/opendata).
 - Routes: [adsb.im](https://adsb.im)'s route API, which serves community-maintained
   [standing data](https://github.com/vradarserver/standing-data) (CC0).
 - Aircraft registration and type: [adsbdb.com](https://www.adsbdb.com), which credits PlaneBase.

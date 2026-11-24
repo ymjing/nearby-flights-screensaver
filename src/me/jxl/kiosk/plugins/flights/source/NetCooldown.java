@@ -16,6 +16,8 @@ public final class NetCooldown {
   private final LongSupplier clock;
   private long untilMs;
   private int strikes;
+  private boolean unmetered;
+  private long nextUnmeteredMs;
   private long day = -1, nextRequestMs;
   private int requests;
   private java.util.function.Consumer<String> persist;
@@ -43,6 +45,13 @@ public final class NetCooldown {
     }
   }
 
+  /** adsb.fi: no daily client budget, but never exceed one request per second. */
+  public synchronized void configureUnmetered(java.util.function.LongPredicate allowed) {
+    this.allowed = allowed;
+    this.persist = null;
+    this.unmetered = true;
+  }
+
   private void save() {
     if (persist != null) persist.accept(day + ":" + requests + ":" + untilMs + ":" + nextRequestMs);
   }
@@ -52,7 +61,15 @@ public final class NetCooldown {
     if (allowed != null && !allowed.test(now))
       throw new SourceException("Outside operating hours", null, 30);
     int left = remainingS();
-    if (left > 0) throw new SourceException("adsb.lol cooling down", null, left);
+    if (left > 0)
+      throw new SourceException((unmetered ? "adsb.fi" : "adsb.lol") + " cooling down", null, left);
+    if (unmetered) {
+      if (now < nextUnmeteredMs)
+        throw new SourceException(
+            "adsb.fi waiting for next request", null, (int) ((nextUnmeteredMs - now + 999) / 1000));
+      nextUnmeteredMs = now + 1000;
+      return;
+    }
     if (persist == null) return; // legacy adapters/tests have no accounting store
     long today = now / 86_400_000L;
     if (today > day) {

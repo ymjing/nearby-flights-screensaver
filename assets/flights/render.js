@@ -265,7 +265,7 @@
       document.querySelector('#calm .cdetail').textContent = st.text;
     }
 
-    $('src').textContent = P ? (P.src === 'local' ? '● Local feed' : P.src === 'mix' ? '● Local + internet' : '● Internet feed') : '';
+    $('src').textContent = P ? (P.src === 'local' ? '● Local feed' : P.src === 'mix' ? '● Local + adsb.fi' : '● adsb.fi') : '';
     const note = $('note');
     note.textContent = st.kind === 'stale' ? st.text : '';
   }
