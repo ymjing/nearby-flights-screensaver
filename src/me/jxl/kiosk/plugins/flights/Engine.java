@@ -118,7 +118,15 @@ public final class Engine {
   }
 
   /** Runs one cycle and returns the delay in ms until the next one. */
+  private boolean singleQuery;
+
+  public void useSingleQuery() {
+    singleQuery = true;
+  }
+
   public long tick(long nowMs) {
+    if (singleQuery)
+      fetchRadiusM = config.widen == Config.Widen.SOFT ? config.maxRadiusM : config.radiusM;
     tickMs = nowMs;
     long waitMs = Long.MAX_VALUE; // the soonest any source we did not use may be asked again
     FetchResult got = null;
@@ -336,6 +344,10 @@ public final class Engine {
     String type = t.aircraft.type != null ? t.aircraft.type : t.info.type;
     if (cs == null || type == null) return false;
     return !Enricher.routeExpected(cs) || t.info.origin != null;
+  }
+
+  public void refreshDisplay(long nowMs) {
+    publishIfNeeded(nowMs);
   }
 
   private void publishIfNeeded(long nowMs) {

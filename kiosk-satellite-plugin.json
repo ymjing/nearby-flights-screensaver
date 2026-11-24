@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "nearby-flights",
   "name": "Nearby Flights",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "apiVersion": 1,
   "minAndroidSdk": 24,
   "minAppVersion": "2026.10.23",
@@ -199,12 +199,12 @@
       "key": "refreshSec",
       "title": "Refresh (s)",
       "type": "number",
-      "min": 5,
-      "max": 60,
+      "min": 65,
+      "max": 3600,
       "step": 5,
-      "default": 10,
+      "default": 65,
       "group": "Sources",
-      "description": "Seconds between position updates."
+      "description": "Seconds between position updates; minimum 65 for anonymous access. Daily budget: 480 requests, reset at midnight UTC."
     },
     {
       "key": "showWeather",
@@ -272,6 +272,94 @@
         "equals": true
       },
       "description": "Add the wind to the weather line, in the unit of the weather entity. It is the first thing dropped when the line is too long."
+    },
+    {
+      "key": "adsbApiKey",
+      "title": "adsb.lol API key",
+      "type": "string",
+      "default": "",
+      "group": "Sources",
+      "description": "Anonymous API key. Sent only to adsb.lol; leave empty for unkeyed access."
+    },
+    {
+      "key": "adsbQuotaState",
+      "title": "API request accounting (automatic)",
+      "type": "string",
+      "default": "",
+      "group": "Sources",
+      "description": "Maintained automatically. Do not edit: preserves the daily budget and cooldown across restarts."
+    },
+    {
+      "key": "scheduleEnabled",
+      "title": "Limit operating hours",
+      "type": "boolean",
+      "default": true,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "scheduleStart",
+      "title": "Start time",
+      "type": "string",
+      "default": "09:00",
+      "group": "Operating schedule",
+      "description": "Device local time, 24-hour HH:mm. Start included."
+    },
+    {
+      "key": "scheduleEnd",
+      "title": "End time",
+      "type": "string",
+      "default": "17:00",
+      "group": "Operating schedule",
+      "description": "Device local time, 24-hour HH:mm. End excluded. Equal times mean all day; overnight periods belong to the starting weekday."
+    },
+    {
+      "key": "runMonday",
+      "title": "Monday",
+      "type": "boolean",
+      "default": true,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "runTuesday",
+      "title": "Tuesday",
+      "type": "boolean",
+      "default": true,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "runWednesday",
+      "title": "Wednesday",
+      "type": "boolean",
+      "default": true,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "runThursday",
+      "title": "Thursday",
+      "type": "boolean",
+      "default": true,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "runFriday",
+      "title": "Friday",
+      "type": "boolean",
+      "default": true,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "runSaturday",
+      "title": "Saturday",
+      "type": "boolean",
+      "default": false,
+      "group": "Operating schedule"
+    },
+    {
+      "key": "runSunday",
+      "title": "Sunday",
+      "type": "boolean",
+      "default": false,
+      "group": "Operating schedule"
     }
   ]
 }

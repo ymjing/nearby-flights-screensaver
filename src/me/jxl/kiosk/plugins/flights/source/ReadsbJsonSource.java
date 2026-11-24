@@ -27,6 +27,13 @@ public final class ReadsbJsonSource implements SourceAdapter {
   private static final int MAX_BODY_BYTES = 4 * 1024 * 1024;
   private static final int TIMEOUT_MS = 8000;
 
+  private String apiKey = "";
+
+  public ReadsbJsonSource withApiKey(String key) {
+    this.apiKey = key;
+    return this;
+  }
+
   private final String id;
   private final String localUrl; // null for adsb.lol
   private final String userAgent;
@@ -157,13 +164,16 @@ public final class ReadsbJsonSource implements SourceAdapter {
       // No request at all while adsb.lol asked us to back off, whichever of our calls tripped it.
       if (left > 0) throw new SourceException(id + " source paused (rate limited)", null, left);
     }
+    if (cooldown != null) cooldown.acquire();
     HttpURLConnection c = null;
     try {
       c = (HttpURLConnection) new URL(url).openConnection();
+      if (localUrl == null) c.setInstanceFollowRedirects(false);
       c.setConnectTimeout(TIMEOUT_MS);
       c.setReadTimeout(TIMEOUT_MS);
       c.setRequestProperty("User-Agent", userAgent);
       c.setRequestProperty("Accept", "application/json");
+      if (localUrl == null && !apiKey.isEmpty()) c.setRequestProperty("x-api-key", apiKey);
       int code = c.getResponseCode();
       if (code != 200) {
         int retry = parseRetryAfter(c.getHeaderField("Retry-After"));
@@ -190,11 +200,6 @@ public final class ReadsbJsonSource implements SourceAdapter {
   }
 
   static int parseRetryAfter(String header) {
-    if (header == null) return 0;
-    try {
-      return Math.max(0, Math.min(3600, Integer.parseInt(header.trim())));
-    } catch (NumberFormatException e) {
-      return 0; // an HTTP-date form: ignore it and let the normal backoff apply
-    }
+    return NetCooldown.retryAfter(header);
   }
 }

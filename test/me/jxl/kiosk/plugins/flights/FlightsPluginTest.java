@@ -69,6 +69,7 @@ class FlightsPluginTest {
    */
   static Map<String, Object> settings() {
     Map<String, Object> m = new HashMap<>();
+    m.put("scheduleEnabled", false);
     m.put("homeLat", "27.5");
     m.put("homeLon", "-82.5");
     m.put("primarySource", "Local feed");
@@ -210,5 +211,28 @@ class FlightsPluginTest {
     }
     assertTrue(m.isNull("fa") && g.isNull("fa"));
     assertEquals(0, m.getJSONArray("ac").length());
+  }
+
+  @Test
+  void disabledWeekdaysPauseAndEditingScheduleResumes() throws Exception {
+    FakeHost h = new FakeHost();
+    FlightsPlugin p = new FlightsPlugin();
+    Map<String, Object> m = settings();
+    m.put("scheduleEnabled", true);
+    for (String day :
+        java.util.Arrays.asList(
+            "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+      m.put("run" + day, false);
+    try {
+      p.start(h, m);
+      assertTrue(
+          waitFor(() -> h.statuses.stream().anyMatch(x -> x.contains("outside operating hours"))));
+      assertTrue(isIdle(h.published.get(h.published.size() - 1)));
+      m.put("scheduleEnabled", false);
+      p.configure(m);
+      assertTrue(waitFor(() -> !isIdle(h.published.get(h.published.size() - 1))));
+    } finally {
+      p.stop();
+    }
   }
 }

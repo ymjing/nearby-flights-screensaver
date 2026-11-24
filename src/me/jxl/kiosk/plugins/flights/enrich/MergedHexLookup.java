@@ -35,7 +35,7 @@ public final class MergedHexLookup implements Lookup {
     }
     Info live;
     try {
-      live = callsigns.aircraft(hex);
+      live = callsigns == null ? null : callsigns.aircraft(hex);
     } catch (IOException e) {
       // Safe: callsign is optional; without it this aircraft just shows no route this time.
       live = null;

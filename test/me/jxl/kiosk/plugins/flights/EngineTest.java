@@ -338,4 +338,22 @@ class EngineTest {
     e.tick(0);
     assertEquals(1, src.asked.size());
   }
+
+  @Test
+  void singleQueryFetchesMaximumButSelectsSmallestSuitableRadius() {
+    Ranged src = new Ranged("net", 35, 38);
+    Sink sink = new Sink();
+    Engine e = new Engine(widening(Config.Widen.SOFT, 1), src, null, sink, 65000);
+    e.useSingleQuery();
+    e.tick(0);
+    assertEquals(java.util.Arrays.asList(100.0), src.asked);
+    assertTrue(sink.last().contains("\"r\":" + Math.round(40 * 1852.0)));
+    src.nm[0] = 10;
+    src.nm[1] = 12;
+    e.tick(65000);
+    assertEquals(java.util.Arrays.asList(100.0, 100.0), src.asked);
+    assertTrue(sink.last().contains("\"r\":" + Math.round(15 * 1852.0)));
+    e.refreshDisplay(70000);
+    assertEquals(2, src.asked.size());
+  }
 }

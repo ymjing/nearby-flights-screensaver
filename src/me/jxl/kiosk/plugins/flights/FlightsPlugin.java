@@ -12,7 +12,6 @@ import java.util.regex.Matcher;
 import me.jxl.kiosk.plugins.KioskPlugin;
 import me.jxl.kiosk.plugins.PluginHost;
 import me.jxl.kiosk.plugins.flights.enrich.AdsbImRoutes;
-import me.jxl.kiosk.plugins.flights.enrich.AdsbLolHex;
 import me.jxl.kiosk.plugins.flights.enrich.AdsbdbLookup;
 import me.jxl.kiosk.plugins.flights.enrich.Enricher;
 import me.jxl.kiosk.plugins.flights.enrich.MergedHexLookup;
@@ -39,6 +38,11 @@ public final class FlightsPlugin implements KioskPlugin {
   static final String NATIVE_MODE_ID = "plugin:nearby-flights:" + NativeScope.KEY;
 
   private PluginHost host;
+  private final NetCooldown net = new NetCooldown();
+  private volatile OperatingSchedule operatingSchedule;
+  private String apiKey = "";
+  private long fetchDueMs;
+  private boolean outsideHours;
   private ScheduledExecutorService worker;
   private Map<String, Object> applied;
 
@@ -237,14 +241,21 @@ public final class FlightsPlugin implements KioskPlugin {
       return;
     }
     // One adsb.lol cooldown for positions, wider probes and hex lookups: a 429 pauses all three.
-    NetCooldown net = new NetCooldown();
+    operatingSchedule = s.schedule;
+    apiKey = s.apiKey;
+    fetchDueMs = 0;
+    outsideHours = false;
+    net.configure(
+        (String) settings.get("adsbQuotaState"),
+        state -> {
+          host.updateSettings(Collections.<String, Object>singletonMap("adsbQuotaState", state));
+        },
+        now -> !paused && operatingSchedule.allows(now));
     // adsbdb for hex -> registration/type; adsb.im for callsign routes.
     enricher =
         new Enricher(
-            new MergedHexLookup(
-                new AdsbdbLookup(USER_AGENT),
-                new AdsbLolHex(USER_AGENT, net),
-                new AdsbImRoutes(USER_AGENT)));
+            new MergedHexLookup(new AdsbdbLookup(USER_AGENT), null, new AdsbImRoutes(USER_AGENT)));
+    enricher.setAllowed(now -> !paused && operatingSchedule.allows(now));
     enricher.start();
     final int myGen = generation + 1; // the generation schedule() below will start
     engine =
@@ -261,6 +272,7 @@ public final class FlightsPlugin implements KioskPlugin {
             },
             s.refreshMs,
             enricher);
+    engine.useSingleQuery();
     // After the engine exists: the host delivers the first snapshot at once, and it must land here.
     startWeather(s);
     // Daemon thread: a stuck request must never hold up the host's 3 s lifecycle deadline.
@@ -303,18 +315,19 @@ public final class FlightsPlugin implements KioskPlugin {
         });
   }
 
-  private static SourceAdapter NONE_OR(String name, String url, NetCooldown net) {
+  private SourceAdapter NONE_OR(String name, String url, NetCooldown net) {
     return PluginSettings.NONE.equals(name) ? null : source(name, url, net);
   }
 
-  private static SourceAdapter source(String name, String localUrl, NetCooldown net) {
+  private SourceAdapter source(String name, String localUrl, NetCooldown net) {
     if (PluginSettings.BOTH.equals(name)) {
       return new MergedSource(
-          ReadsbJsonSource.local(localUrl, USER_AGENT), ReadsbJsonSource.adsbLol(USER_AGENT, net));
+          ReadsbJsonSource.local(localUrl, USER_AGENT),
+          ReadsbJsonSource.adsbLol(USER_AGENT, net).withApiKey(apiKey));
     }
     return PluginSettings.LOCAL.equals(name)
         ? ReadsbJsonSource.local(localUrl, USER_AGENT)
-        : ReadsbJsonSource.adsbLol(USER_AGENT, net);
+        : ReadsbJsonSource.adsbLol(USER_AGENT, net).withApiKey(apiKey);
   }
 
   private synchronized void schedule(int gen, long delayMs) {
@@ -335,10 +348,32 @@ public final class FlightsPlugin implements KioskPlugin {
     }
     long delay;
     try {
-      delay = e.tick(System.currentTimeMillis());
-      if (!paused)
-        host.status(withPublishProblem(e.statusText()), e.isStale()); // keep "Paused" showing
-      for (String line : e.drainEnrichEvents()) host.log(line);
+      long tickNow = System.currentTimeMillis();
+      if (!operatingSchedule.allows(tickNow)) {
+        if (!outsideHours) publish(PayloadEncoder.idle(tickNow), 0);
+        outsideHours = true;
+        host.status("Paused: outside operating hours (device local time)", false);
+        delay = 30_000;
+      } else if (tickNow < fetchDueMs) {
+        if (outsideHours) {
+          e.forcePublish();
+          outsideHours = false;
+        }
+        e.refreshDisplay(tickNow);
+        if (!paused) host.status(withPublishProblem(e.statusText()), e.isStale());
+        delay = Math.min(30_000, fetchDueMs - tickNow);
+      } else {
+        if (outsideHours) {
+          e.forcePublish();
+          outsideHours = false;
+        }
+        delay = e.tick(tickNow);
+        fetchDueMs = System.currentTimeMillis() + delay;
+        delay = Math.min(30_000, delay);
+        if (!paused)
+          host.status(withPublishProblem(e.statusText()), e.isStale()); // keep "Paused" showing
+        for (String line : e.drainEnrichEvents()) host.log(line);
+      }
       long nowMs = System.currentTimeMillis();
       if (nowMs - lastSummaryMs >= SUMMARY_EVERY_MS) {
         lastSummaryMs = nowMs;

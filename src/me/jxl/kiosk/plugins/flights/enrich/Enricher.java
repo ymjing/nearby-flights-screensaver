@@ -506,6 +506,12 @@ public final class Enricher {
   /**
    * Starts the daemon worker. A stuck request must never hold up the host's lifecycle callbacks.
    */
+  private java.util.function.LongPredicate allowed = now -> true;
+
+  public synchronized void setAllowed(java.util.function.LongPredicate allowed) {
+    this.allowed = allowed;
+  }
+
   public synchronized void start() {
     if (thread != null) return;
     thread = new Thread(this::run, "flights-enrich");
@@ -523,7 +529,8 @@ public final class Enricher {
       while (true) {
         long wait;
         try {
-          wait = step(System.currentTimeMillis());
+          wait =
+              allowed.test(System.currentTimeMillis()) ? step(System.currentTimeMillis()) : 30_000;
         } catch (RuntimeException | Error e) {
           // A bug in one lookup must not end enrichment for good: the aircraft keep their feed
           // fields, and the step is retried after a pause (the key was already taken off the

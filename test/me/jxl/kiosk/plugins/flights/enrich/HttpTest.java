@@ -12,11 +12,11 @@ import org.junit.jupiter.api.Test;
 
 class HttpTest {
   @Test
-  void retryAfterIsWholeSecondsAndAnythingElseIsZero() {
+  void retryAfterSupportsLongWaitsAndPastDates() {
     assertEquals(30, Http.retryAfterS(" 30 "));
-    assertEquals(3600, Http.retryAfterS("99999"));
+    assertEquals(99999, Http.retryAfterS("99999"));
     assertEquals(0, Http.retryAfterS(null));
-    assertEquals(0, Http.retryAfterS("Wed, 21 Oct 2026 07:28:00 GMT"));
+    assertEquals(0, Http.retryAfterS("Sat, 01 Jan 2000 00:00:00 GMT"));
   }
 
   @Test

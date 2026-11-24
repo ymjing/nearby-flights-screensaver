@@ -84,13 +84,8 @@ final class Http {
     }
   }
 
-  /** Whole seconds, 0 for a missing or HTTP-date value (the normal backoff then applies). */
+  /** Retry-After seconds or HTTP-date; 0 when missing, invalid or in the past. */
   static int retryAfterS(String header) {
-    if (header == null) return 0;
-    try {
-      return Math.max(0, Math.min(3600, Integer.parseInt(header.trim())));
-    } catch (NumberFormatException e) {
-      return 0;
-    }
+    return me.jxl.kiosk.plugins.flights.source.NetCooldown.retryAfter(header);
   }
 }

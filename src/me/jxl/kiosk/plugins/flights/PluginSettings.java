@@ -28,12 +28,15 @@ public final class PluginSettings {
   public static Map<String, Object> engineKey(Map<String, Object> settings) {
     Map<String, Object> k = new java.util.HashMap<>(settings);
     k.keySet().removeAll(WEATHER_KEYS);
+    k.remove("adsbQuotaState");
     return k;
   }
 
   public final Config config;
   public final String primary, fallback, localUrl;
   public final long refreshMs;
+  public OperatingSchedule schedule;
+  public String apiKey;
 
   /** The `weather.*` entity to show, or empty when "Show weather" is off or no entity is chosen. */
   public final String weatherEntity;
@@ -126,16 +129,25 @@ public final class PluginSettings {
       entity = "";
       wxProblem = "The weather entity must be a weather.* entity";
     }
-    return new PluginSettings(
-        c,
-        primary,
-        fallback,
-        url,
-        (long) num(m.get("refreshSec"), 10, 5, 60) * 1000L,
-        entity,
-        wxProblem,
-        wxShow,
-        err);
+    PluginSettings result =
+        new PluginSettings(
+            c,
+            primary,
+            fallback,
+            url,
+            (long) num(m.get("refreshSec"), 65, 65, 3600) * 1000L,
+            entity,
+            wxProblem,
+            wxShow,
+            err);
+    try {
+      result.schedule = new OperatingSchedule(m);
+    } catch (IllegalArgumentException e) {
+      return new PluginSettings(
+          c, primary, fallback, url, result.refreshMs, entity, wxProblem, wxShow, e.getMessage());
+    }
+    result.apiKey = str(m.get("adsbApiKey"), "").trim();
+    return result;
   }
 
   private static String clockCode(String label) {

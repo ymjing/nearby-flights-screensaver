@@ -96,10 +96,10 @@ class ReadsbJsonSourceTest {
   }
 
   @Test
-  void retryAfterIsClamped() {
+  void retryAfterPreservesLongWaits() {
     assertEquals(30, ReadsbJsonSource.parseRetryAfter(" 30 "));
-    assertEquals(0, ReadsbJsonSource.parseRetryAfter("Wed, 21 Oct 2026 07:28:00 GMT"));
-    assertEquals(3600, ReadsbJsonSource.parseRetryAfter("99999"));
+    assertEquals(0, ReadsbJsonSource.parseRetryAfter("Sat, 01 Jan 2000 00:00:00 GMT"));
+    assertEquals(99999, ReadsbJsonSource.parseRetryAfter("99999"));
     assertNull(null);
   }
 

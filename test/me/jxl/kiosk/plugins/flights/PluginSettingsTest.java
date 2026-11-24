@@ -27,7 +27,7 @@ class PluginSettingsTest {
     assertEquals(15 * 1852.0, s.config.radiusM, 1e-6);
     assertEquals("av", s.config.units);
     assertEquals(4, s.config.maxRows);
-    assertEquals(10_000, s.refreshMs);
+    assertEquals(65_000, s.refreshMs);
     Map<String, Object> m = ok();
     m.put("units", "Metric");
     m.put("radiusNm", 99.0);
@@ -35,7 +35,7 @@ class PluginSettingsTest {
     s = PluginSettings.parse(m);
     assertEquals("met", s.config.units);
     assertEquals(50 * 1852.0, s.config.radiusM, 1e-6); // clamped
-    assertEquals(5_000, s.refreshMs);
+    assertEquals(65_000, s.refreshMs);
   }
 
   @Test

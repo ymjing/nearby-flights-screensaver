@@ -73,13 +73,13 @@ Tried it on something else? Please report how it looks.
 
 ## 🚀 Install
 
-### Community Plugins (Recommended)
+### Install this fork
 
-Nearby Flights is listed in Kiosk Satellite's Community Plugins directory.
+Use the button below or add `https://github.com/ymjing/nearby-flights-screensaver` manually to install this fork.
 
-[![Install in Kiosk Satellite](https://kiosksatellite.com/img/badges/plugin-add.svg)](https://kiosksatellite.com/redirect/plugin/?repository=mpjanofsky/nearby-flights-screensaver)
+[![Install in Kiosk Satellite](https://kiosksatellite.com/img/badges/plugin-add.svg)](https://kiosksatellite.com/redirect/plugin/?repository=ymjing/nearby-flights-screensaver)
 
-Or search for `Nearby Flights` in **Settings > Plugin Manager > Browse plugins**. Then enable the plugin from its row,
+Then enable the plugin from its row,
 fill in your latitude and longitude, and pick **Nearby Flights** under **Screensaver > Screensaver mode**.
 
 ### Manual
@@ -183,7 +183,32 @@ in this order: wind direction, wind, the condition word. The temperature stays.
 | Primary source | Local feed | **Local feed**, **adsb.lol**, or **Local + adsb.lol** (uses both and merges them, so you see farther than your antenna reaches). |
 | Local feed URL | empty | Your receiver's `aircraft.json`, like `http://receiver.local:8080/data/aircraft.json`. |
 | Fallback source | adsb.lol | What to use when the primary source is unavailable. Choose None to turn it off. |
-| Refresh (s) | 10 | How often to fetch positions, 5 to 60 seconds. |
+| Refresh (s) | 65 | How often to fetch positions, 65 to 3,600 seconds. Previously saved shorter intervals are raised to 65 seconds. |
+| adsb.lol API key | empty | Your anonymous key; sent in the `x-api-key` header only to adsb.lol. |
+| API request accounting (automatic) | empty | Saved request count, next poll and cooldown. Leave this field unchanged. |
+
+**Operating schedule**
+
+In the plugin's web settings, set **Start time** and **End time** using 24-hour `HH:mm`,
+and switch each weekday on or off. Defaults are **09:00–17:00, Monday–Friday**; Saturday
+and Sunday are off. Times follow the device timezone, including daylight saving changes.
+The start is included and the end excluded. Equal times mean a full day. Overnight windows
+belong to the day they start (Friday 22:00–02:00 includes early Saturday).
+Switch **Limit operating hours** off for unrestricted hours, or turn every weekday off to
+pause. Outside the schedule the screen shows the idle sky and new flight-data requests stop;
+an already-running request may finish. Schedule changes apply when saved. Automatic transitions
+are checked at most 30 seconds apart while the screensaver is active.
+
+This fork targets anonymous access: one position query every 65 seconds is about 444 requests
+in eight hours. Soft radius fetches its maximum area once and selects the displayed radius
+locally. Optional adsb.lol callsign lookups are disabled; callsigns from the position feed still
+work. A persistent **480-request cap per UTC day** reserves headroom below the anonymous
+500-request allowance. Failed attempts count too. Longer schedules stop fetching when the cap
+is reached. Other devices/apps sharing your IP or key can still consume the provider's allowance.
+The plugin honors both numeric and HTTP-date `Retry-After` values without shortening long waits.
+Accounting is saved through Kiosk Satellite's settings API before requests; if saving fails,
+internet fetching pauses rather than spending untracked requests. This requires a host supporting
+`updateSettings`. The key itself is never included in the screensaver payload or logs.
 
 ### No receiver?
 
